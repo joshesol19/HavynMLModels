@@ -613,9 +613,15 @@ def train_model(training_df, target_col, label):
 
 def build_inference_rows(residents_df, health_df, edu_df, sessions_df,
                           visitations_df, incidents_df, plans_df):
-    today        = pd.Timestamp.now().normalize()
-    window_start = today - pd.Timedelta(days=60)
-    active       = residents_df[residents_df["case_status"] == "Active"]
+    """
+    Build inference feature rows for each active resident.
+
+    Window anchor: instead of using today's date (which would find nothing
+    in a demo dataset whose records end in 2025), we use each resident's
+    most recent record date as the anchor. This ensures the 60-day feature
+    window always captures real data regardless of when the pipeline runs.
+    """
+    active = residents_df[residents_df["case_status"] == "Active"]
 
     health_rows    = []
     edu_rows       = []
@@ -624,36 +630,55 @@ def build_inference_rows(residents_df, health_df, edu_df, sessions_df,
     for _, res in active.iterrows():
         rid = res["resident_id"]
 
-        h_feats = compute_health_features(
-            rid, window_start, today,
-            health_df, sessions_df, visitations_df, incidents_df, residents_df
-        )
-        if h_feats:
-            h_feats["resident_id"] = rid
-            health_rows.append(h_feats)
+        # ── Health: anchor on last health record date ─────────────────────────
+        h_all = health_df[health_df["resident_id"] == rid].sort_values("record_date")
+        if len(h_all) > 0:
+            anchor       = h_all["record_date"].iloc[-1]
+            window_start = anchor - pd.Timedelta(days=60)
+            h_feats = compute_health_features(
+                rid, window_start, anchor,
+                health_df, sessions_df, visitations_df, incidents_df, residents_df
+            )
+            if h_feats:
+                h_feats["resident_id"] = rid
+                health_rows.append(h_feats)
 
-        e_feats = compute_edu_features(
-            rid, window_start, today,
-            edu_df, sessions_df, visitations_df, incidents_df, plans_df, residents_df
-        )
-        if e_feats:
-            e_feats["resident_id"] = rid
-            edu_rows.append(e_feats)
+        # ── Education: anchor on last education record date ───────────────────
+        e_all = edu_df[edu_df["resident_id"] == rid].sort_values("record_date")
+        if len(e_all) > 0:
+            anchor       = e_all["record_date"].iloc[-1]
+            window_start = anchor - pd.Timedelta(days=60)
+            e_feats = compute_edu_features(
+                rid, window_start, anchor,
+                edu_df, sessions_df, visitations_df, incidents_df, plans_df, residents_df
+            )
+            if e_feats:
+                e_feats["resident_id"] = rid
+                edu_rows.append(e_feats)
 
-        emo_feats = compute_emotional_features(
-            rid, window_start, today,
-            sessions_df, health_df, visitations_df, incidents_df, residents_df
-        )
-        if emo_feats:
-            emo_feats["resident_id"] = rid
-            emotional_rows.append(emo_feats)
+        # ── Emotional: anchor on last session date ────────────────────────────
+        s_all = sessions_df[sessions_df["resident_id"] == rid].sort_values("session_date")
+        if len(s_all) > 0:
+            anchor       = s_all["session_date"].iloc[-1]
+            window_start = anchor - pd.Timedelta(days=60)
+            emo_feats = compute_emotional_features(
+                rid, window_start, anchor,
+                sessions_df, health_df, visitations_df, incidents_df, residents_df
+            )
+            if emo_feats:
+                emo_feats["resident_id"] = rid
+                emotional_rows.append(emo_feats)
 
     print(f"  Inference rows — health: {len(health_rows)} | edu: {len(edu_rows)} | emotional: {len(emotional_rows)}")
-    return (
-        pd.DataFrame(health_rows),
-        pd.DataFrame(edu_rows),
-        pd.DataFrame(emotional_rows),
-    )
+
+    # Return empty DataFrames with a resident_id column so downstream
+    # code never crashes on a missing column when rows is empty
+    def _safe_df(rows):
+        if rows:
+            return pd.DataFrame(rows)
+        return pd.DataFrame(columns=["resident_id"])
+
+    return _safe_df(health_rows), _safe_df(edu_rows), _safe_df(emotional_rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -676,36 +701,30 @@ def run_predictions(health_model, health_feature_cols,
         # ── Health ────────────────────────────────────────────────────────────
         health_prob = None
         health_tag  = None
-        h_row = health_inf[health_inf["resident_id"] == rid]
-        if len(h_row) > 0:
-            X_h = h_row[health_feature_cols].copy()
-            for col in health_feature_cols:
-                if col not in X_h.columns:
-                    X_h[col] = np.nan
-            health_prob = float(health_model.predict_proba(X_h[health_feature_cols])[:, 1][0])
-            current_score = h_row["health_score_current"].values[0]
-            if current_score >= 4.5:
-                health_tag = "Already High — Stable"
+        if "resident_id" in health_inf.columns and len(health_inf) > 0:
+            h_row = health_inf[health_inf["resident_id"] == rid]
+            if len(h_row) > 0:
+                X_h = h_row.reindex(columns=health_feature_cols).copy()
+                health_prob = float(health_model.predict_proba(X_h)[:, 1][0])
+                current_score = h_row["health_score_current"].values[0]
+                if current_score >= 4.5:
+                    health_tag = "Already High — Stable"
 
         # ── Education ─────────────────────────────────────────────────────────
         edu_prob = None
-        e_row = edu_inf[edu_inf["resident_id"] == rid]
-        if len(e_row) > 0:
-            X_e = e_row[edu_feature_cols].copy()
-            for col in edu_feature_cols:
-                if col not in X_e.columns:
-                    X_e[col] = np.nan
-            edu_prob = float(edu_model.predict_proba(X_e[edu_feature_cols])[:, 1][0])
+        if "resident_id" in edu_inf.columns and len(edu_inf) > 0:
+            e_row = edu_inf[edu_inf["resident_id"] == rid]
+            if len(e_row) > 0:
+                X_e = e_row.reindex(columns=edu_feature_cols).copy()
+                edu_prob = float(edu_model.predict_proba(X_e)[:, 1][0])
 
         # ── Emotional ─────────────────────────────────────────────────────────
         emo_prob = None
-        emo_row = emo_inf[emo_inf["resident_id"] == rid]
-        if len(emo_row) > 0:
-            X_emo = emo_row[emo_feature_cols].copy()
-            for col in emo_feature_cols:
-                if col not in X_emo.columns:
-                    X_emo[col] = np.nan
-            emo_prob = float(emo_model.predict_proba(X_emo[emo_feature_cols])[:, 1][0])
+        if "resident_id" in emo_inf.columns and len(emo_inf) > 0:
+            emo_row = emo_inf[emo_inf["resident_id"] == rid]
+            if len(emo_row) > 0:
+                X_emo = emo_row.reindex(columns=emo_feature_cols).copy()
+                emo_prob = float(emo_model.predict_proba(X_emo)[:, 1][0])
 
         # ── Overall score — average only available probabilities ──────────────
         available = [p for p in [health_prob, edu_prob, emo_prob] if p is not None]
