@@ -479,7 +479,7 @@ def build_health_training_df(health_df, sessions_df, visitations_df, incidents_d
 
             score_at_T60 = future.sort_values("record_date").iloc[-1]["general_health_score"]
             delta        = score_at_T60 - score_at_T
-            y_label      = 1 if delta >= IMPROVEMENT_THRESHOLD else 0
+            y_label      = 1 if delta > 0 else 0
 
             feats = compute_health_features(
                 resident_id, window_start, T,
