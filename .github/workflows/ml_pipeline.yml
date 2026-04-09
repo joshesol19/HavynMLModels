@@ -2,26 +2,26 @@ name: ML Pipeline
 
 on:
   schedule:
-    - cron: '0 21 * * *'  # 9pm UTC = 5am Philippine time
-  workflow_dispatch:       # lets you trigger it manually too
+    - cron: '0 21 * * *'   # 9pm UTC = 5am Philippine time
+  workflow_dispatch:
 
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      
+
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-      
-      - name: Run ML pipeline
+        run: pip install -r requirements.txt
+
+      # ── YOUR THREE PROGRESS MODELS ─────────────────────────────────────────
+      - name: Run progress models (Health, Education, Emotional)
         env:
           PGHOST:     ${{ secrets.PGHOST }}
           PGUSER:     ${{ secrets.PGUSER }}
@@ -31,3 +31,55 @@ jobs:
         run: |
           cd "3 Positive Facing Models"
           python pipeline_run.py
+
+      # ── PARTNER NOTEBOOK 1: INCIDENT RISK ──────────────────────────────────
+      - name: Run incident risk notebook
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGPORT:     ${{ secrets.PGPORT }}
+        run: |
+          jupyter nbconvert --to notebook --execute \
+            --ExecutePreprocessor.timeout=300 \
+            --output incident_risk_pipeline_executed.ipynb \
+            "Partner Models/incident_risk_pipeline.ipynb"
+
+      # ── PARTNER NOTEBOOK 2: SOCIAL MEDIA ───────────────────────────────────
+      - name: Run social media recommendations notebook
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGPORT:     ${{ secrets.PGPORT }}
+        run: |
+          jupyter nbconvert --to notebook --execute \
+            --ExecutePreprocessor.timeout=300 \
+            --output social_media_causal_pipeline_v2_executed.ipynb \
+            "Partner Models/social_media_causal_pipeline_v2.ipynb"
+
+      # ── PARTNER NOTEBOOK 3: REINTEGRATION ──────────────────────────────────
+      - name: Run reintegration timeline notebook
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGPORT:     ${{ secrets.PGPORT }}
+        run: |
+          jupyter nbconvert --to notebook --execute \
+            --ExecutePreprocessor.timeout=300 \
+            --output reintegration_timeline_pipeline_executed.ipynb \
+            "Partner Models/reintegration_timeline_pipeline.ipynb"
+
+      # ── WRITE ALL PARTNER OUTPUTS TO DATABASE ───────────────────────────────
+      - name: Write partner model outputs to database
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGPORT:     ${{ secrets.PGPORT }}
+        run: python write_partner_outputs_to_db.py
