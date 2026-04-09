@@ -745,11 +745,22 @@ def run_predictions(health_model, health_feature_cols,
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. UPSERT PREDICTIONS TO DATABASE
+# 8. WRITE PREDICTIONS TO DATABASE
 # ─────────────────────────────────────────────────────────────────────────────
 
-def ensure_predictions_table(engine):
-    with engine.connect() as conn:
+def upsert_predictions(engine, predictions_df):
+    """
+    Write predictions to resident_predictions table.
+    Uses engine.begin() which auto-commits on success and auto-rolls back
+    on any exception — the most reliable pattern for Azure PostgreSQL
+    with SQLAlchemy 2.0.
+
+    Strategy: CREATE TABLE IF NOT EXISTS, then TRUNCATE + INSERT each run.
+    Simpler and more reliable than row-by-row upsert. Safe because this
+    table is purely derived output, never a source of truth.
+    """
+    with engine.begin() as conn:
+        # Create table if it does not exist yet
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS resident_predictions (
                 resident_id     INTEGER PRIMARY KEY,
@@ -762,13 +773,10 @@ def ensure_predictions_table(engine):
                 model_version   VARCHAR(20)
             )
         """))
-        conn.commit()
 
+        # Clear existing predictions and write fresh ones
+        conn.execute(text("TRUNCATE TABLE resident_predictions"))
 
-def upsert_predictions(engine, predictions_df):
-    ensure_predictions_table(engine)
-
-    with engine.connect() as conn:
         for _, row in predictions_df.iterrows():
             conn.execute(text("""
                 INSERT INTO resident_predictions
@@ -777,18 +785,10 @@ def upsert_predictions(engine, predictions_df):
                 VALUES
                     (:resident_id, :health_prob, :education_prob, :emotional_prob,
                      :overall_score, :health_tag, :predicted_at, :model_version)
-                ON CONFLICT (resident_id) DO UPDATE SET
-                    health_prob    = EXCLUDED.health_prob,
-                    education_prob = EXCLUDED.education_prob,
-                    emotional_prob = EXCLUDED.emotional_prob,
-                    overall_score  = EXCLUDED.overall_score,
-                    health_tag     = EXCLUDED.health_tag,
-                    predicted_at   = EXCLUDED.predicted_at,
-                    model_version  = EXCLUDED.model_version
             """), row.to_dict())
-        conn.commit()
 
-    print(f"  Upserted {len(predictions_df)} rows into resident_predictions")
+    # If we reach here the transaction committed successfully
+    print(f"  Wrote {len(predictions_df)} rows into resident_predictions")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
