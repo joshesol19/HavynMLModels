@@ -516,7 +516,7 @@ def build_edu_training_df(edu_df, sessions_df, visitations_df, incidents_df, pla
             prog_at_T60             = future.sort_values("record_date").iloc[-1]["progress_percent"]
             avg_attend_label_window = future["attendance_rate"].mean()
             prog_delta              = prog_at_T60 - prog_at_T
-            y_label                 = 1 if (prog_delta >= PROGRESS_THRESHOLD and avg_attend_label_window >= ATTENDANCE_THRESHOLD) else 0
+            y_label                 = 1 if (prog_delta >= PROGRESS_THRESHOLD or avg_attend_label_window >= ATTENDANCE_THRESHOLD) else 0
 
             feats = compute_edu_features(
                 resident_id, window_start, T,
@@ -535,7 +535,7 @@ def build_edu_training_df(edu_df, sessions_df, visitations_df, incidents_df, pla
 
 def build_emotional_training_df(sessions_df, health_df, visitations_df, incidents_df, residents_df):
     EMO_IMPROVEMENT_THRESH = 0.80
-    PROGRESS_NOTED_THRESH  = 0.90
+    PROGRESS_NOTED_THRESH  = 0.60
     MIN_LABEL_SESSIONS     = 3
     rows = []
 
