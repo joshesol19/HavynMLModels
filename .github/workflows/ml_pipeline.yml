@@ -19,8 +19,7 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install pandas numpy scikit-learn sqlalchemy \
-                      psycopg2-binary joblib python-dotenv
+          pip install -r requirements.txt
       
       - name: Run ML pipeline
         env:
@@ -30,5 +29,5 @@ jobs:
           PGDATABASE: ${{ secrets.PGDATABASE }}
           PGPORT:     ${{ secrets.PGPORT }}
         run: |
-          cd "3 Good Models"
+          cd "3 Positive Facing Models"
           python pipeline_run.py
