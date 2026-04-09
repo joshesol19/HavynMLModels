@@ -62,7 +62,7 @@ def main():
                 INSERT INTO "ResidentIncidentRisk"
                     ("ResidentId", "RiskTier", "FlaggedForReview", "TopRiskFactors", "ScoredAt")
                 VALUES
-                    (:rid, :tier, :flagged, :factors::jsonb, :scored_at)
+                    (:rid, :tier, :flagged, CAST(:factors AS JSONB), :scored_at)
             """), {
                 "rid":       row["resident_id"],
                 "tier":      row["risk_tier"],
@@ -95,7 +95,7 @@ def main():
             INSERT INTO "MlModelMeta"
                 ("Id", "IncidentRiskFactors", "SocialMediaRecs", "ReintegrationModel", "UpdatedAt")
             VALUES
-                (1, :incident::jsonb, :social::jsonb, :reintegration::jsonb, :updated_at)
+                (1, CAST(:incident AS JSONB), CAST(:social AS JSONB), CAST(:reintegration AS JSONB), :updated_at)
             ON CONFLICT ("Id") DO UPDATE SET
                 "IncidentRiskFactors" = EXCLUDED."IncidentRiskFactors",
                 "SocialMediaRecs"     = EXCLUDED."SocialMediaRecs",
