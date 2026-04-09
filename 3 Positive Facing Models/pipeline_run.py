@@ -731,14 +731,14 @@ def run_predictions(health_model, health_feature_cols,
         overall   = float(np.mean(available)) if available else None
 
         results.append({
-            "resident_id":    rid,
-            "health_prob":    health_prob,
-            "education_prob": edu_prob,
-            "emotional_prob": emo_prob,
-            "overall_score":  overall,
-            "health_tag":     health_tag,
-            "predicted_at":   now,
-            "model_version":  "1.0",
+            "ResidentId":    rid,
+            "HealthProb":    health_prob,
+            "EducationProb": edu_prob,
+            "EmotionalProb": emo_prob,
+            "OverallScore":  overall,
+            "HealthTag":     health_tag,
+            "PredictedAt":   now,
+            "ModelVersion":  "1.0",
         })
 
     return pd.DataFrame(results)
@@ -763,14 +763,14 @@ def upsert_predictions(engine, predictions_df):
         # Create table if it does not exist yet
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS "ResidentPredictions" (
-                resident_id     INTEGER PRIMARY KEY,
-                health_prob     FLOAT,
-                education_prob  FLOAT,
-                emotional_prob  FLOAT,
-                overall_score   FLOAT,
-                health_tag      VARCHAR(100),
-                predicted_at    TIMESTAMPTZ,
-                model_version   VARCHAR(20)
+                "ResidentId"     INTEGER PRIMARY KEY,
+                "HealthProb"     FLOAT,
+                "EducationProb"  FLOAT,
+                "EmotionalProb"  FLOAT,
+                "OverallScore"   FLOAT,
+                "HealthTag"      VARCHAR(100),
+                "PredictedAt"    TIMESTAMPTZ,
+                "ModelVersion"   VARCHAR(20)
             )
         """))
 
@@ -780,11 +780,11 @@ def upsert_predictions(engine, predictions_df):
         for _, row in predictions_df.iterrows():
             conn.execute(text("""
                 INSERT INTO "ResidentPredictions"
-                    (resident_id, health_prob, education_prob, emotional_prob,
-                     overall_score, health_tag, predicted_at, model_version)
+                    ("ResidentId", "HealthProb", "EducationProb", "EmotionalProb",
+                     "OverallScore", "HealthTag", "PredictedAt", "ModelVersion")
                 VALUES
-                    (:resident_id, :health_prob, :education_prob, :emotional_prob,
-                     :overall_score, :health_tag, :predicted_at, :model_version)
+                    (:ResidentId, :HealthProb, :EducationProb, :EmotionalProb,
+                     :OverallScore, :HealthTag, :PredictedAt, :ModelVersion)
             """), row.to_dict())
 
     # If we reach here the transaction committed successfully
