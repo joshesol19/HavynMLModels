@@ -7,7 +7,7 @@ What this file does:
   2. Loads all required tables
   3. Retrains health, education, and emotional progress models in memory
   4. Runs .predict_proba() on every active resident
-  5. Upserts results into resident_predictions table
+  5. Upserts results into ResidentPredictions table
   6. ASP.NET backend reads that table — no ML code in the backend
 
 Usage:
@@ -750,7 +750,7 @@ def run_predictions(health_model, health_feature_cols,
 
 def upsert_predictions(engine, predictions_df):
     """
-    Write predictions to resident_predictions table.
+    Write predictions to ResidentPredictions table.
     Uses engine.begin() which auto-commits on success and auto-rolls back
     on any exception — the most reliable pattern for Azure PostgreSQL
     with SQLAlchemy 2.0.
@@ -762,7 +762,7 @@ def upsert_predictions(engine, predictions_df):
     with engine.begin() as conn:
         # Create table if it does not exist yet
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS resident_predictions (
+            CREATE TABLE IF NOT EXISTS "ResidentPredictions" (
                 resident_id     INTEGER PRIMARY KEY,
                 health_prob     FLOAT,
                 education_prob  FLOAT,
@@ -775,11 +775,11 @@ def upsert_predictions(engine, predictions_df):
         """))
 
         # Clear existing predictions and write fresh ones
-        conn.execute(text("TRUNCATE TABLE resident_predictions"))
+        conn.execute(text('TRUNCATE TABLE "ResidentPredictions"'))
 
         for _, row in predictions_df.iterrows():
             conn.execute(text("""
-                INSERT INTO resident_predictions
+                INSERT INTO "ResidentPredictions"
                     (resident_id, health_prob, education_prob, emotional_prob,
                      overall_score, health_tag, predicted_at, model_version)
                 VALUES
@@ -788,7 +788,7 @@ def upsert_predictions(engine, predictions_df):
             """), row.to_dict())
 
     # If we reach here the transaction committed successfully
-    print(f"  Wrote {len(predictions_df)} rows into resident_predictions")
+    print(f"  Wrote {len(predictions_df)} rows into ResidentPredictions")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
