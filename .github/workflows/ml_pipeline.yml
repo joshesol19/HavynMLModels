@@ -20,6 +20,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # ── CREATE .env FILE FOR PARTNER NOTEBOOKS ─────────────────────────────
+      - name: Create .env for partner notebooks
+        run: |
+          cat > .env << EOF
+          PGHOST=${{ secrets.PGHOST }}
+          PGUSER=${{ secrets.PGUSER }}
+          PGPASSWORD=${{ secrets.PGPASSWORD }}
+          PGDATABASE=${{ secrets.PGDATABASE }}
+          PGPORT=${{ secrets.PGPORT }}
+          EOF
+
       # ── YOUR THREE PROGRESS MODELS ─────────────────────────────────────────
       - name: Run progress models (Health, Education, Emotional)
         env:
