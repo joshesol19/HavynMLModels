@@ -1,0 +1,34 @@
+name: ML Pipeline
+
+on:
+  schedule:
+    - cron: '0 21 * * *'  # 9pm UTC = 5am Philippine time
+  workflow_dispatch:       # lets you trigger it manually too
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install pandas numpy scikit-learn sqlalchemy \
+                      psycopg2-binary joblib python-dotenv
+      
+      - name: Run ML pipeline
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGPORT:     ${{ secrets.PGPORT }}
+        run: |
+          cd "3 Good Models"
+          python pipeline_run.py
